@@ -5,13 +5,17 @@
   <title>Tesla Verbindung</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
-
 <body style="font-family:Arial;max-width:700px;margin:50px auto;padding:20px">
 
 <h2>Tesla mit Loxone verbinden</h2>
 
 <div id="start">
-  <p>Hier kannst du dein Tesla-Konto einmalig mit deiner privaten Loxone-Anwendung verbinden.</p>
+  <p>
+    Diese private Anwendung verbindet dein Tesla-Konto mit deiner Loxone-Integration.
+    Angefordert werden Fahrzeugdaten, Standort, Fahrzeugbefehle, Ladeverwaltung
+    sowie Energieprodukt-Daten und -Befehle.
+  </p>
+
   <button onclick="connectTesla()" style="font-size:18px;padding:12px 20px">
     Tesla verbinden
   </button>
@@ -21,8 +25,7 @@
   <h3>Autorisierung erfolgreich</h3>
   <p>Der Tesla-Autorisierungscode lautet:</p>
 
-  <textarea id="code"
-            readonly
+  <textarea id="code" readonly
             style="width:100%;height:120px;font-family:monospace"></textarea>
 
   <br><br>
@@ -35,69 +38,73 @@
 </div>
 
 <script>
-const clientId =
-  "063c7328-4656-4d8b-9034-35e7be9c3873";
+const clientId = "063c7328-4656-4d8b-9034-35e7be9c3873";
+const redirectUri = "https://jhochgatterer48.github.io/tesla-callback.html";
 
-const redirectUri =
-  "https://jhochgatterer48.github.io/tesla-callback.html";
+const scopes = [
+  "openid",
+  "offline_access",
+  "vehicle_device_data",
+  "vehicle_location",
+  "vehicle_cmds",
+  "vehicle_charging_cmds",
+  "energy_device_data",
+  "energy_cmds"
+].join(" ");
 
 function createState() {
   const data = new Uint8Array(32);
   crypto.getRandomValues(data);
-
   return Array.from(data)
     .map(b => b.toString(16).padStart(2, "0"))
     .join("");
 }
 
 function connectTesla() {
-
   const state = createState();
-
   sessionStorage.setItem("tesla_oauth_state", state);
 
   const params = new URLSearchParams({
     response_type: "code",
     client_id: clientId,
     redirect_uri: redirectUri,
-    scope: "openid vehicle_device_data offline_access",
+    scope: scopes,
     state: state,
     prompt_missing_scopes: "true",
     require_requested_scopes: "true"
   });
 
   window.location.href =
-    "https://auth.tesla.com/oauth2/v3/authorize?" +
-    params.toString();
+    "https://auth.tesla.com/oauth2/v3/authorize?" + params.toString();
 }
 
 function copyCode() {
-  navigator.clipboard.writeText(
-    document.getElementById("code").value
-  );
-
-  document.getElementById("status").innerText =
-    "Code wurde kopiert.";
+  navigator.clipboard.writeText(document.getElementById("code").value);
+  document.getElementById("status").innerText = "Code wurde kopiert.";
 }
 
 const query = new URLSearchParams(window.location.search);
-
 const code = query.get("code");
 const returnedState = query.get("state");
+const error = query.get("error");
+const errorDescription = query.get("error_description");
+
+if (error) {
+  document.getElementById("start").innerHTML =
+    "<h3>Tesla-Autorisierung fehlgeschlagen</h3>" +
+    "<p>" + error + "</p>" +
+    (errorDescription ? "<p>" + errorDescription + "</p>" : "");
+}
 
 if (code) {
-
-  const expectedState =
-    sessionStorage.getItem("tesla_oauth_state");
+  const expectedState = sessionStorage.getItem("tesla_oauth_state");
 
   if (expectedState && returnedState === expectedState) {
-
     document.getElementById("start").style.display = "none";
     document.getElementById("result").style.display = "block";
     document.getElementById("code").value = code;
-
+    sessionStorage.removeItem("tesla_oauth_state");
   } else {
-
     document.body.innerHTML =
       "<h2>Sicherheitsprüfung fehlgeschlagen.</h2>" +
       "<p>Bitte die Tesla-Verbindung nochmals von dieser Seite starten.</p>";
